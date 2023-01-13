@@ -1,3 +1,5 @@
 {
-  "tailwindConfig": "./styles/tailwind.config.js"
+    "tailwindConfig": "./tailwind.config.cjs",
+    "singleQuote": false,
+    "tabWidth": 4
 }
