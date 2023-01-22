@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Code } from "./components";
+import { Test } from "./components/Test";
 
 function App() {
     const [step, setStep] = useState(0);
@@ -7,6 +8,7 @@ function App() {
 
     return (
         <div className="flex h-full w-full justify-center bg-slate-900">
+            {/* <Test /> */}
             <div className="flex w-full max-w-screen-lg flex-col items-center justify-center space-y-10 p-5">
                 <div className="flex w-full justify-between">
                     <p className="text-3xl font-bold text-slate-300">

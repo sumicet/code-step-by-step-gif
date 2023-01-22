@@ -1,4 +1,11 @@
 .previous-step {
-    filter: grayscale(100%);
+    /* filter: grayscale(100%); */
     opacity: 0.7;
+    background-color: rgb(102, 34, 23) !important;
+}
+
+.test {
+    /* filter: grayscale(100%); */
+    opacity: 0.7;
+    background-color: rgb(23, 102, 56);
 }

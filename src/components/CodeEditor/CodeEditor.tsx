@@ -1,10 +1,10 @@
-import { forwardRef, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import Editor, { OnMount, loader } from "@monaco-editor/react";
 import { editor } from "monaco-editor";
 import "./index.css";
+import isEqual from "lodash/isEqual";
 
-const ENTER = "\r\n";
-const DELETE = "";
+const ENTER = "\n";
 
 loader.init().then((monaco) => {
     monaco.editor.defineTheme("myTheme", {
@@ -17,201 +17,234 @@ loader.init().then((monaco) => {
     });
 });
 
+interface Range {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+}
+
 export const CodeEditor = forwardRef<any, any>((props, ref) => {
-    function handleEditorDidMount(
-        editor: Parameters<OnMount>[0],
-        monaco: Parameters<OnMount>[1]
-    ) {
-        const range = new monaco.Range(1, 1, 1, 18);
-        const model = editor.getModel();
-        // @ts-ignore
-        editorRef.current = editor;
-        decorationsRef.current.ids =
-            model?.deltaDecorations(decorationsRef.current.ids, [
-                {
+    const [value, setValue] = useState<string | undefined>(
+        `<Editor
+    theme="myTheme"
+    height="500px"
+    defaultLanguage="javascript"
+    defaultValue={value}
+    onMount={handleEditorDidMount}
+    onChange={handleChangeEditor}
+    options={{
+        colorDecorators: true,
+        inDiffEditor: true,
+        minimap: {
+            enabled: false,
+        },
+        lineNumbers: "off",
+        scrollbar: {
+            vertical: "hidden",
+            horizontal: "hidden",
+        },
+        overviewRulerBorder: false,
+        overviewRulerLanes: 0,
+    }}
+    value={value}
+/>`
+    );
+
+    /**
+     * The highlighted ranges which are readonly
+     */
+    const ranges = useRef<Range[] | null>(null);
+    const model = useRef<editor.ITextModel | null>(null);
+    const editor = useRef<editor.IStandaloneCodeEditor | null>(null);
+    const allDecorations = useRef<editor.IModelDecoration[]>([]);
+    /**
+     * The last offset where the action of delete was prevented (because it was
+     * inside a readonly range)
+     */
+    const undoProgramaticallyOffset = useRef<number | null>(null);
+    /**
+     * Memorize the active decorator ids otherwise they will be removed
+     */
+    const decorators = useRef<string[]>([]);
+
+    const updateReadonlyCode = () => {
+        decorators.current =
+            model.current?.deltaDecorations(
+                decorators.current,
+                ranges.current?.map((range) => ({
                     range,
                     options: {
                         inlineClassName: "previous-step",
                     },
-                },
-            ]) ?? [];
-        decorationsRef.current.data = model?.getAllDecorations() ?? [];
-    }
+                })) ?? []
+            ) ?? [];
 
-    const [value, setValue] = useState<string | undefined>(
-        "console.log('hello world!');"
-    );
-    const editorRef = useRef<Parameters<OnMount>[0]>(null);
-    const decorationsRef = useRef<{
-        data: Array<{
-            range: {
-                startLineNumber: number;
-                startColumn: number;
-                endLineNumber: number;
-                endColumn: number;
-            };
-            options: any;
-        }>;
-        ids: string[];
-    }>({ data: [], ids: [] });
+        allDecorations.current = model.current?.getAllDecorations() ?? [];
+    };
 
-    const handleChangeEditor = (
-        val: string | undefined,
-        ev: editor.IModelContentChangedEvent
+    const getRangeAtPosition = (
+        range: Range,
+        { column, lineNumber }: { lineNumber: number; column: number }
     ) => {
-        const model = editorRef?.current?.getModel();
+        return (
+            // Offset is between the start and end of the range
+            (range.startLineNumber < lineNumber &&
+                range.endLineNumber > lineNumber) ||
+            // Offset is on the same line as the start
+            (range.startLineNumber === lineNumber &&
+                range.startColumn <= column) ||
+            // Offset is on the same line as the end
+            (range.endLineNumber === lineNumber && range.endColumn > column)
+        );
+    };
 
-        const allDecorations = model?.getAllDecorations();
-        const previousStepDecorators = allDecorations
-            ?.filter((dec) => dec.options.inlineClassName === "previous-step")
-            .map((dec) => ({
-                range: dec.range,
-                id: dec.id,
-            }));
+    const rangeContainsRange = (rangeA: Range, rangeB: Range) => {
+        return (
+            (rangeA.startLineNumber < rangeB.startLineNumber ||
+                (rangeA.startLineNumber === rangeB.startLineNumber &&
+                    rangeA.startColumn <= rangeB.startColumn)) &&
+            (rangeA.endLineNumber > rangeB.endLineNumber ||
+                (rangeA.endLineNumber === rangeB.endLineNumber &&
+                    rangeA.endColumn >= rangeB.endColumn))
+        );
+    };
 
-        const editedRange = ev.changes[0].range;
-        const editedText = ev.changes[0].text;
+    const rangeIntersectsRange = useCallback((rangeA: Range, rangeB: Range) => {
+        console.log(
+            rangeA,
+            rangeB,
+            // Starts before range and intersects it
+            getRangeAtPosition(rangeA, {
+                column: rangeB.startColumn,
+                lineNumber: rangeB.startLineNumber,
+            }),
+            // Ends after range and intersects it
+            getRangeAtPosition(rangeA, {
+                column: rangeB.endColumn,
+                lineNumber: rangeB.endLineNumber,
+            }),
+            // Is contained inside range
+            rangeContainsRange(rangeA, rangeB),
+            // Contains range
+            rangeContainsRange(rangeB, rangeA)
+        );
+        return (
+            // Starts before range and intersects it
+            getRangeAtPosition(rangeA, {
+                column: rangeB.startColumn,
+                lineNumber: rangeB.startLineNumber,
+            }) ||
+            // Ends after range and intersects it
+            getRangeAtPosition(rangeA, {
+                column: rangeB.endColumn,
+                lineNumber: rangeB.endLineNumber,
+            }) ||
+            // Is contained inside range
+            rangeContainsRange(rangeA, rangeB) ||
+            // Contains range
+            rangeContainsRange(rangeB, rangeA)
+        );
+    }, []);
 
-        /**
-         * The range that intersects the edited range.
-         */
-        const conflictingRange = previousStepDecorators?.filter((dec) => {
-            return dec.range.intersectRanges(editedRange);
-        })?.[0];
-        console.log({ conflictingRange });
+    const handleChangeEditor = useCallback(
+        (
+            newValue: string | undefined,
+            ev: editor.IModelContentChangedEvent
+        ) => {
+            // Range length is the number of deleted characters
+            const { range, rangeOffset } = ev.changes[0];
 
-        if (conflictingRange) {
-            // If the user deleted something
-            if (editedText === DELETE) {
-                editorRef?.current?.setValue(value ?? "");
+            // editor.current?.trigger will always fire a onChange event
+            // Ignore it when this happens
+            if (undoProgramaticallyOffset.current === rangeOffset) {
+                undoProgramaticallyOffset.current = null;
+                return null;
+            }
 
-                model?.deltaDecorations(
-                    decorationsRef.current.ids,
-                    decorationsRef.current.data
+            // THIS WORKS FOR INTERSECTING OMG
+            const intersectsReadOnlyRange = model.current
+                ?.getAllDecorations()
+                .filter(
+                    (dec) => dec.options.inlineClassName === "previous-step"
+                )
+                ?.some(({ range: decoRange }) =>
+                    rangeIntersectsRange(range, decoRange)
                 );
 
-                return;
-            }
-            console.log({ editedRange });
+            // MAKE SURE YOU UPDATE DECORATORS WHEN YOU UPDATE THE VALUE
 
-            let left;
-            let right;
-            let removeCustomRange: {
-                range: Range;
-                id: string;
-            };
+            // Prevent the user from deleting code inside a readonly range
+            if (intersectsReadOnlyRange) {
+                // onChange will fire again after undoing programatically
+                editor.current?.trigger(null, "undo", null);
+                undoProgramaticallyOffset.current = rangeOffset;
+                updateReadonlyCode();
 
-            const length = model?.getLineContent(
-                editedRange.startLineNumber
-            ).length;
-            const nextLength = model?.getLineContent(
-                editedRange.startLineNumber + 1
-            ).length;
-            console.log("here", previousStepDecorators);
-            const nextLineStartWithDecoration = previousStepDecorators?.filter(
-                (dec) => {
-                    return (
-                        dec.range.startColumn === 1 &&
-                        dec.range.startLineNumber ===
-                            editedRange.startLineNumber + 1
-                    );
-                }
-            )?.[0];
-
-            console.log({ nextLineStartWithDecoration });
-
-            if (editedText === ENTER && !length) {
-                // Created an empty line by pressing enter on it
-                right = {
-                    startLineNumber: conflictingRange.range.startLineNumber + 1,
-                    startColumn: conflictingRange.range.startColumn,
-                    endLineNumber: conflictingRange.range.endLineNumber,
-                    endColumn: conflictingRange.range.endColumn,
-                };
-            } else if (
-                editedText === ENTER &&
-                length &&
-                !nextLength &&
-                nextLineStartWithDecoration
-            ) {
-                console.log("CREATED FROM PREV");
-                // Created an empty line by pressing enter on the previous line,
-                // at the end of the line
-                right = {
-                    startLineNumber: conflictingRange.range.startLineNumber + 2,
-                    startColumn: conflictingRange.range.startColumn,
-                    endLineNumber: conflictingRange.range.endLineNumber + 1,
-                    endColumn: nextLineStartWithDecoration.range.endColumn,
-                };
-                removeCustomRange = nextLineStartWithDecoration; // Don't remove because it'll conflict with the previous line, which should stay
-            } else {
-                left = {
-                    startLineNumber: conflictingRange.range.startLineNumber,
-                    startColumn: conflictingRange.range.startColumn,
-                    endLineNumber: editedRange.startLineNumber,
-                    endColumn: editedRange.startColumn,
-                };
-
-                if (editedText === ENTER) {
-                    right = {
-                        startLineNumber: editedRange.endLineNumber + 1,
-                        startColumn: 1,
-                        endLineNumber: conflictingRange.range.endLineNumber,
-                        endColumn: conflictingRange.range.endColumn,
-                    };
-                } else {
-                    right = {
-                        startLineNumber: editedRange.endLineNumber,
-                        startColumn: editedRange.endColumn + 1,
-                        endLineNumber: conflictingRange.range.endLineNumber,
-                        endColumn: conflictingRange.range.endColumn,
-                    };
-                }
+                return null;
             }
 
-            const otherCustomDecorators =
-                allDecorations
-                    ?.filter((dec) =>
-                        removeCustomRange
-                            ? dec.id !== removeCustomRange.id
-                            : dec.id !== conflictingRange.id
-                    )
-                    .map((dec) => ({
-                        range: dec.range,
-                        options: dec.options,
-                    })) ?? [];
+            updateReadonlyCode();
 
-            const newDecorators =
-                [
-                    {
-                        range: left,
-                        options: {
-                            inlineClassName: "previous-step",
-                        },
-                    },
-                    {
-                        range: right,
-                        options: {
-                            inlineClassName: "previous-step",
-                        },
-                    },
-                ].filter((dec) => !!dec.range) ?? [];
+            // if (
+            //     text.startsWith(ENTER) &&
+            //     // The editor will add spaces to indent the code
+            //     text.replaceAll(ENTER, "").replaceAll(" ", "").length === 0
+            // ) {
+            //     // console.log("enter");
+            //     updateReadonlyCode();
+            //     setValue(newValue);
+            //     return null;
+            // }
 
-            // @ts-ignore
-            decorationsRef.current.ids = model?.deltaDecorations(
-                decorationsRef.current.ids,
-                // @ts-ignore
-                [...newDecorators, ...otherCustomDecorators]
-            );
-            // @ts-ignore
-            decorationsRef.current.data =
-                [...newDecorators, ...otherCustomDecorators] ?? [];
+            // // console.log("other");
+            // setValue(newValue);
+            // updateReadonlyCode();
+        },
+        [rangeIntersectsRange]
+    );
 
-            console.log({ left, right });
-        }
+    function handleEditorDidMount(
+        ed: Parameters<OnMount>[0],
+        monaco: Parameters<OnMount>[1]
+    ) {
+        editor.current = ed;
+        model.current = ed.getModel();
+        const fullRange = model.current?.getFullModelRange();
+        console.log(fullRange);
+        const initialRange: Range = {
+            startColumn: fullRange?.startColumn ?? 1,
+            startLineNumber: fullRange?.startLineNumber ?? 1,
+            endColumn: fullRange?.endColumn ?? 1,
+            endLineNumber: fullRange?.endLineNumber ?? 1,
+        };
+        ranges.current = [initialRange];
 
-        setValue(val);
-    };
+        // Testing
+
+        updateReadonlyCode();
+
+        ranges.current = [
+            {
+                startColumn: 1,
+                startLineNumber: 1,
+                endColumn: model.current?.getLineMaxColumn(10) ?? 10,
+                endLineNumber: 10,
+            },
+            {
+                startColumn: 1,
+                startLineNumber: 15,
+                endColumn: fullRange?.endColumn ?? 1,
+                endLineNumber: fullRange?.endLineNumber ?? 1,
+            },
+        ];
+
+        updateReadonlyCode();
+
+        editor.current?.onDidChangeModelContent((ev) => {
+            console.log("onDidChangeModelContent", ev);
+        });
+    }
 
     return (
         <Editor
@@ -220,6 +253,7 @@ export const CodeEditor = forwardRef<any, any>((props, ref) => {
             defaultLanguage="javascript"
             defaultValue={value}
             onMount={handleEditorDidMount}
+            onChange={handleChangeEditor}
             options={{
                 colorDecorators: true,
                 inDiffEditor: true,
@@ -235,7 +269,99 @@ export const CodeEditor = forwardRef<any, any>((props, ref) => {
                 overviewRulerLanes: 0,
             }}
             value={value}
-            onChange={handleChangeEditor}
         />
     );
 });
+
+// /**
+//  * Return the index of the range that contains a position
+//  */
+// const getRangeAtPosition = (
+//     range: Range,
+//     { column, lineNumber }: { lineNumber: number; column: number }
+// ) => {
+//     return (
+//         // Offset is between the start and end of the range
+//         (range.startLineNumber < lineNumber &&
+//             range.endLineNumber > lineNumber) ||
+//         // Offset is on the same line as the start
+//         (range.startLineNumber === lineNumber &&
+//             range.startColumn <= column) ||
+//         // Offset is on the same line as the end
+//         (range.endLineNumber === lineNumber && range.endColumn > column)
+//     );
+// };
+
+// const rangeContainsRange = (rangeA: Range, rangeB: Range) => {
+//     return (
+//         (rangeA.startLineNumber < rangeB.startLineNumber ||
+//             (rangeA.startLineNumber === rangeB.startLineNumber &&
+//                 rangeA.startColumn <= rangeB.startColumn)) &&
+//         (rangeA.endLineNumber > rangeB.endLineNumber ||
+//             (rangeA.endLineNumber === rangeB.endLineNumber &&
+//                 rangeA.endColumn >= rangeB.endColumn))
+//     );
+// };
+
+// /**
+//  * Return the index of the range that contains [offset, offset + length]
+//  */
+// const getRangeAt = useCallback((offset: number, length: number) => {
+//     const start = model.current?.getPositionAt(offset);
+
+//     if (!start) return -1;
+
+//     if (!length) {
+//         return (
+//             ranges.current?.findIndex((range) =>
+//                 getRangeAtPosition(range, start)
+//             ) ?? -1
+//         );
+//     }
+
+//     const end = model.current?.getPositionAt(offset + length);
+
+//     if (!end) return -1;
+
+//     // console.log({ start, end, offset, length });
+
+//     const newRange = {
+//         startLineNumber: start.lineNumber,
+//         startColumn: start.column,
+//         endLineNumber: end.lineNumber,
+//         endColumn: end.column,
+//     };
+
+//     return (
+//         ranges.current?.findIndex((range) => {
+//             // console.log(range, newRange, {
+//             //     "getRangeAtPosition(range, start)": getRangeAtPosition(
+//             //         range,
+//             //         start
+//             //     ),
+//             //     "getRangeAtPosition(range, end)": getRangeAtPosition(
+//             //         range,
+//             //         end
+//             //     ),
+//             //     "rangeContainsRange(range, newRange)": rangeContainsRange(
+//             //         range,
+//             //         newRange
+//             //     ),
+//             //     "rangeContainsRange(newRange, range)": rangeContainsRange(
+//             //         newRange,
+//             //         range
+//             //     ),
+//             // });
+//             return (
+//                 // Starts before range and intersects it
+//                 getRangeAtPosition(range, start) ||
+//                 // Ends after range and intersects it
+//                 (end && getRangeAtPosition(range, end)) ||
+//                 // Is contained inside range
+//                 (end && rangeContainsRange(range, newRange)) ||
+//                 // Contains range
+//                 (end && rangeContainsRange(newRange, range))
+//             );
+//         }) ?? -1
+//     );
+// }, []);
