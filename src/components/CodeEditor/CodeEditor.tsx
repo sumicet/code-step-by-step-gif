@@ -100,9 +100,10 @@ export const CodeEditor = forwardRef<any, any>((props, ref) => {
 
             // THIS WORKS FOR INTERSECTING OMG
             const intersectsReadOnlyRange = readOnlyDecorations
-                ?.map(({ range: decoRange }) =>
-                    rangeIntersectsRange(range, decoRange)
-                )
+                ?.map((decorator) => ({
+                    ...rangeIntersectsRange(range, decorator.range),
+                    decorator: decorator,
+                }))
                 .find(({ value }) => value);
 
             // Prevent the user from deleting code inside a readonly range
@@ -133,10 +134,49 @@ export const CodeEditor = forwardRef<any, any>((props, ref) => {
                 };
 
                 if (intersectsReadOnlyRange.position === "contains") {
-                }
+                    const left = {
+                        startLineNumber:
+                            intersectsReadOnlyRange.decorator.range
+                                .startLineNumber,
+                        startColumn:
+                            intersectsReadOnlyRange.decorator.range.startColumn,
+                        endLineNumber: realRange.startLineNumber,
+                        endColumn: realRange.startColumn,
+                    };
+                    const right = {
+                        startLineNumber: realRange.endLineNumber,
+                        startColumn: realRange.endColumn,
+                        endLineNumber:
+                            intersectsReadOnlyRange.decorator.range
+                                .endLineNumber,
+                        endColumn:
+                            intersectsReadOnlyRange.decorator.range.endColumn,
+                    };
 
-                console.log({ realRange });
+                    decorators.current =
+                        model.current?.deltaDecorations(decorators.current, [
+                            ...(readOnlyDecorations?.filter(
+                                (dec) =>
+                                    dec.id !==
+                                    intersectsReadOnlyRange.decorator.id
+                            ) ?? []),
+                            {
+                                range: left,
+                                options: {
+                                    inlineClassName: "previous-step",
+                                },
+                            },
+                            {
+                                range: right,
+                                options: {
+                                    inlineClassName: "previous-step",
+                                },
+                            },
+                        ]) ?? [];
+                }
             }
+
+            // TODO delete or add on the same line? adjust decorators
 
             const lineDiff =
                 range.endLineNumber - range.startLineNumber ||
