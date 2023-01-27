@@ -1,6 +1,22 @@
 import { Range } from "./types";
 
-export const rangeIntersectsPosition = (
+/**
+ * range A starts before range B and they intersect
+ */
+export const rangeStartsBeforeRange = (rangeA: Range, rangeB: Range) =>
+    rangeA.endLineNumber < rangeB.startLineNumber ||
+    (rangeA.endLineNumber === rangeB.startLineNumber &&
+        rangeA.endColumn <= rangeB.startColumn);
+
+/**
+ * range A starts after range B and they intersect
+ */
+export const rangeStartsAfterRange = (rangeA: Range, rangeB: Range) =>
+    rangeA.startLineNumber > rangeB.endLineNumber ||
+    (rangeA.startLineNumber === rangeB.endLineNumber &&
+        rangeA.startColumn >= rangeB.endColumn);
+
+const rangeIntersectsPosition = (
     range: Range,
     { column, lineNumber }: { lineNumber: number; column: number }
 ) => {
@@ -16,50 +32,80 @@ export const rangeIntersectsPosition = (
 };
 
 /**
- * Check if a range is contained inside another range
+ * range A starts before range B and they intersect
  */
-export const rangeContainsRange = (rangeA: Range, rangeB: Range) => {
-    return (
-        (rangeA.startLineNumber < rangeB.startLineNumber ||
-            (rangeA.startLineNumber === rangeB.startLineNumber &&
-                rangeA.startColumn <= rangeB.startColumn)) &&
-        (rangeA.endLineNumber > rangeB.endLineNumber ||
-            (rangeA.endLineNumber === rangeB.endLineNumber &&
-                rangeA.endColumn >= rangeB.endColumn))
-    );
-};
+export const rangeIntersectsStartOfRange = (rangeA: Range, rangeB: Range) =>
+    rangeIntersectsPosition(rangeA, {
+        column: rangeB.startColumn,
+        lineNumber: rangeB.startLineNumber,
+    });
+
+/**
+ * range A starts after range B and they intersect
+ */
+export const rangeIntersectsEndOfRange = (rangeA: Range, rangeB: Range) =>
+    rangeIntersectsPosition(rangeA, {
+        column: rangeB.endColumn,
+        lineNumber: rangeB.endLineNumber,
+    });
+
+/**
+ * range A contains range B
+ */
+export const rangeContainsRange = (rangeA: Range, rangeB: Range) =>
+    rangeIntersectsStartOfRange(rangeA, rangeB) &&
+    rangeIntersectsEndOfRange(rangeA, rangeB);
 
 export const rangeIntersectsRange = (rangeA: Range, rangeB: Range) => {
+    if (rangeContainsRange(rangeA, rangeB)) return "contains";
+    if (rangeContainsRange(rangeB, rangeA)) return "contained";
+    if (rangeIntersectsStartOfRange(rangeA, rangeB)) return "before";
+    if (rangeIntersectsEndOfRange(rangeA, rangeB)) return "after";
+    return false;
+};
+
+export const moveRangeByRange = (
+    rangeA: Range,
+    rangeB: Range,
+    name?: string
+) => {
+    if (rangeStartsBeforeRange(rangeA, rangeB)) return rangeA;
+
+    const newLines = rangeB.endLineNumber - rangeB.startLineNumber;
+
     const result = {
-        // Contains range
-        contains: rangeContainsRange(rangeB, rangeA),
-        // Is contained inside range
-        contained: rangeContainsRange(rangeA, rangeB),
-        // Starts before range and intersects it
-        before: rangeIntersectsPosition(rangeA, {
-            column: rangeB.startColumn,
-            lineNumber: rangeB.startLineNumber,
-        }),
-        // Ends after range and intersects it
-        after: rangeIntersectsPosition(rangeA, {
-            column: rangeB.endColumn,
-            lineNumber: rangeB.endLineNumber,
-        }),
+        startLineNumber: rangeA.startLineNumber + newLines,
+        startColumn: rangeA.startColumn,
+        endLineNumber: rangeA.endLineNumber + newLines,
+        endColumn: rangeA.endColumn,
     };
 
-    return Object.entries(result).reduce<{
-        value: boolean;
-        position: keyof typeof result | null;
-    }>(
-        (prev, [key, value]) => ({
-            value: value || prev.value,
-            position: value ? (key as keyof typeof result) : prev.position,
-        }),
-        {
-            value: false,
-            position: null,
-        }
+    // There is a case where rangeA is so long it reaches the start of rangeB
+    // Consider pasting rangeA in a writable range
+    // Because rangeA is so long, add the new lines before checking for
+    // intersections
+
+    // Not interested in modifying rangeA when they intersect because rangeA
+    // should actually split into 2 ranges, which should be handled separately
+    console.log(
+        name,
+        "rangeIntersectsRange(result, rangeB)",
+        rangeIntersectsRange(result, rangeB)
     );
+    if (rangeIntersectsRange(result, rangeB)) return rangeA;
+
+    // They're not on the same line
+    if (rangeA.startLineNumber !== rangeB.endLineNumber) {
+        return result;
+    } else {
+        // They're on the same line
+        return {
+            startLineNumber: result.startLineNumber,
+            startColumn: result.startColumn + rangeB.endColumn,
+            endLineNumber: result.endLineNumber,
+            endColumn: result.endColumn,
+        };
+    }
 };
 
 export const isEnter = (text: string) =>
