@@ -32,9 +32,6 @@ function App() {
             })
         );
 
-        // const data = new FormData();
-        // data.append("image", images[1] ?? "");
-
         if (!blobs.length) return;
 
         console.log({ blobs });
@@ -45,35 +42,70 @@ function App() {
                 name: `${i + 1}.jpg`,
                 data: data as ArrayBuffer,
             })),
-            arguments: ["-framerate", "1", "-i", "%d.jpg", "out.webm"],
+            // "-i", "%d.jpg" is the input file, where %d searches for all files
+            // from 1.png to n.png
+            // "-r", "60" is the frame rate
+            // "out.webm" is the output file
+            arguments: [
+                // each image will have a duration of 2 seconds (the inverse of 1/2 frames per second)
+                "-framerate",
+                "1/2",
+                // the input file, where %d searches for all files
+                "-i",
+                "%d.jpg",
+
+                // "-c:v",
+                // "libx264",
+
+                "-r",
+                "60",
+
+                "-t",
+                "4",
+
+                "-pix_fmt",
+                "yuv420p",
+
+                "out.webm",
+            ],
         });
 
         // console.log({ result });
+        console.log(result.MEMFS[0].data); // Uint8Array
+        const videoUint8Array = new Uint8Array(result.MEMFS[0].data);
+        const decoder = new TextDecoder("utf8");
+        const videoBase64 = decoder.decode(videoUint8Array);
+
+        console.log({ videoBase64 });
         const videoBlob = new Blob([result.MEMFS[0].data]);
         const videoUrl = URL.createObjectURL(videoBlob);
-        console.log({ videoUrl });
 
         setUrl(videoUrl);
 
-        // try {
-        //     const response = await fetch("https://api.imgur.com/3/image", {
-        //         method: "POST",
-        //         body: data,
-        //         headers: {
-        //             Authorization: `Client-ID ${
-        //                 import.meta.env.VITE_CLIENT_ID as string
-        //             }`,
-        //         },
-        //     });
+        if (!videoUrl) return;
 
-        //     const json = await response.json();
+        const data = new FormData();
+        data.append("video", videoBlob);
 
-        //     if (!response.ok) throw new Error(json.data.error);
+        try {
+            const response = await fetch("https://api.imgur.com/3/upload", {
+                method: "POST",
+                body: data,
+                headers: {
+                    Authorization: `Client-ID ${
+                        import.meta.env.VITE_CLIENT_ID as string
+                    }`,
+                },
+            });
 
-        //     window.open(json.data.link, "_blank");
-        // } catch (error: any) {
-        //     console.error(error);
-        // }
+            const json = await response.json();
+
+            if (!response.ok) throw new Error(json.data.error);
+
+            window.open(json.data.link, "_blank");
+        } catch (error: any) {
+            console.error(error);
+        }
     };
 
     return (
@@ -90,7 +122,9 @@ function App() {
                         Generate
                     </button>
                 </div>
-                <video src={url} autoPlay loop />
+                <video autoPlay loop playsInline>
+                    <source src={url} type="video/webm" />
+                </video>
                 <Code step={step} setStep={setStep} max={2} ref={tabPanelRef} />
             </div>
         </div>
