@@ -34,22 +34,17 @@ function App() {
 
         if (!blobs.length) return;
 
-        console.log({ blobs });
-
         // https://github.com/Kagami/ffmpeg.js/issues/18#issuecomment-238810515
         const result = ffmpeg({
             MEMFS: blobs.map((data, i) => ({
                 name: `${i + 1}.jpg`,
                 data: data as ArrayBuffer,
             })),
-            // "-i", "%d.jpg" is the input file, where %d searches for all files
-            // from 1.png to n.png
-            // "-r", "60" is the frame rate
-            // "out.webm" is the output file
+            // https://ffmpeg.org/ffmpeg.html
             arguments: [
-                // each image will have a duration of 2 seconds (the inverse of 1/2 frames per second)
+                // -framerate 1/n => each image will have a duration of n seconds
                 "-framerate",
-                "1/2",
+                "1",
                 // the input file, where %d searches for all files
                 "-i",
                 "%d.jpg",
@@ -57,14 +52,15 @@ function App() {
                 // "-c:v",
                 // "libx264",
 
-                "-r",
+                // video output frame rate
+                "-vframes",
                 "60",
-
-                "-t",
-                "4",
 
                 "-pix_fmt",
                 "yuv420p",
+
+                // "-crf",
+                // "10",
 
                 "out.webm",
             ],
