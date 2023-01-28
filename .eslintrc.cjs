@@ -24,6 +24,7 @@ module.exports = {
         "@typescript-eslint/prefer-ts-expect-error": "warn",
         "@typescript-eslint/no-invalid-void-type": "off",
         "@typescript-eslint/no-floating-promises": "off",
+        "@typescript-eslint/no-misused-promises": "off",
         "react/display-name": "off",
     },
 };

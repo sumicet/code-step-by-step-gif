@@ -1,19 +1,16 @@
 import { OnChange } from "@monaco-editor/react";
-import { Dispatch, SetStateAction, useRef } from "react";
+import { forwardRef, useRef } from "react";
 import { CodeEditor, Tab, TabList, TabPanel, TabPanels, Tabs } from ".";
 import { EditorRef } from "./CodeEditor/types";
 
-export function Code({
-    step,
-    setStep,
-    max,
-    setImages,
-}: {
-    step: number;
-    setStep: (step: number) => void;
-    max: number;
-    setImages: Dispatch<SetStateAction<string[]>>;
-}) {
+export const Code = forwardRef<
+    Array<HTMLElement | null>,
+    {
+        step: number;
+        setStep: (step: number) => void;
+        max: number;
+    }
+>(({ step, setStep, max }, tabPanelRef) => {
     const editors = useRef<Array<EditorRef | null>>(
         [...Array(max)].map(() => null)
     );
@@ -74,8 +71,9 @@ export function Code({
     };
 
     return (
-        <div className="max-h-[700px min-h-[500px] w-full rounded-lg bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 p-16">
+        <div className="h-full max-h-[700px] min-h-[500px] w-full rounded-lg bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 p-16">
             <div className="flex h-full w-full flex-col space-y-5 rounded-lg bg-slate-800 p-4">
+                {/* <div ref={tabPanelRef} className="h-36 w-36 bg-red-400" /> */}
                 <Tabs onChange={setStep}>
                     <TabList className="flex space-x-1">
                         {[...Array(max)].map((_, index) => (
@@ -89,9 +87,16 @@ export function Code({
                             />
                         ))}
                     </TabList>
-                    <TabPanels>
+                    <TabPanels className="h-full">
                         {[...Array(max)].map((_, index) => (
-                            <TabPanel key={index + 1}>
+                            <TabPanel
+                                key={index + 1}
+                                ref={(node) =>
+                                    // @ts-ignore
+                                    (tabPanelRef.current[index] = node)
+                                }
+                                className="h-full"
+                            >
                                 <CodeEditor
                                     onMount={(editor) =>
                                         handleMount(editor, index)
@@ -107,4 +112,4 @@ export function Code({
             </div>
         </div>
     );
-}
+});

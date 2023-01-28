@@ -13,5 +13,9 @@ export function TabPanels({
         })
     );
 
-    return <div {...rest}>{_children}</div>;
+    return (
+        <div {...rest} className={`${rest.className ?? ""} relative`}>
+            {_children}
+        </div>
+    );
 }

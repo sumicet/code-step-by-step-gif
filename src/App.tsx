@@ -1,38 +1,97 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Code } from "./components";
+import { toJpeg, toBlob } from "html-to-image";
+import ffmpeg from "ffmpeg.js";
 
 function App() {
     const [step, setStep] = useState(0);
-    const [images, setImages] = useState<string[]>([]);
+
+    const tabPanelRef = useRef<Array<HTMLElement | null>>([]);
+
+    const [url, setUrl] = useState("");
+
+    const htmlToPng = async () => {
+        const images = await Promise.all(
+            [...Array(2)].map(async (_, index) => {
+                const node = tabPanelRef.current[index];
+                if (!node) return null;
+
+                return await toJpeg(node, {
+                    quality: 1,
+                });
+                // return base64.replace(/^data:image\/png;base64,/, "");
+            })
+        );
+
+        const blobs = await Promise.all(
+            images.map(async (image) => {
+                if (!image) return;
+                const r = await fetch(image);
+                const b = await r.blob();
+                return await b.arrayBuffer();
+            })
+        );
+
+        // const data = new FormData();
+        // data.append("image", images[1] ?? "");
+
+        if (!blobs.length) return;
+
+        console.log({ blobs });
+
+        // https://github.com/Kagami/ffmpeg.js/issues/18#issuecomment-238810515
+        const result = ffmpeg({
+            MEMFS: blobs.map((data, i) => ({
+                name: `${i + 1}.jpg`,
+                data: data as ArrayBuffer,
+            })),
+            arguments: ["-framerate", "1", "-i", "%d.jpg", "out.webm"],
+        });
+
+        // console.log({ result });
+        const videoBlob = new Blob([result.MEMFS[0].data]);
+        const videoUrl = URL.createObjectURL(videoBlob);
+        console.log({ videoUrl });
+
+        setUrl(videoUrl);
+
+        // try {
+        //     const response = await fetch("https://api.imgur.com/3/image", {
+        //         method: "POST",
+        //         body: data,
+        //         headers: {
+        //             Authorization: `Client-ID ${
+        //                 import.meta.env.VITE_CLIENT_ID as string
+        //             }`,
+        //         },
+        //     });
+
+        //     const json = await response.json();
+
+        //     if (!response.ok) throw new Error(json.data.error);
+
+        //     window.open(json.data.link, "_blank");
+        // } catch (error: any) {
+        //     console.error(error);
+        // }
+    };
 
     return (
         <div className="flex h-full w-full justify-center bg-slate-900">
-            <div className="flex w-full max-w-screen-lg flex-col items-center justify-center space-y-10 p-5">
+            <div className="flex w-full flex-col items-center justify-center space-y-10 p-5">
                 <div className="flex w-full justify-between">
                     <p className="text-3xl font-bold text-slate-300">
                         Code step-by-step gif
                     </p>
-                    <button className="rounded-lg bg-white bg-gradient-to-r px-3 py-2 font-bold text-slate-700">
+                    <button
+                        onClick={htmlToPng}
+                        className="rounded-lg bg-white bg-gradient-to-r px-3 py-2 font-bold text-slate-700"
+                    >
                         Generate
                     </button>
                 </div>
-                <div className="relative flex h-fit">
-                    <img
-                        src={images?.[1] ?? ""}
-                        // className="absolute top-0 left-0"
-                        className="w-1/2 object-contain"
-                    />
-                    <img
-                        src={images?.[0] ?? ""}
-                        className="w-1/2 object-contain"
-                    />
-                </div>
-                <Code
-                    step={step}
-                    setStep={setStep}
-                    max={2}
-                    setImages={setImages}
-                />
+                <video src={url} autoPlay loop />
+                <Code step={step} setStep={setStep} max={2} ref={tabPanelRef} />
             </div>
         </div>
     );

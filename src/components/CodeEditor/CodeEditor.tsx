@@ -1,7 +1,5 @@
-import { forwardRef, useState } from "react";
-import Editor, { EditorProps, loader, OnMount } from "@monaco-editor/react";
+import Editor, { EditorProps, loader } from "@monaco-editor/react";
 import "./index.css";
-import { EditorRef } from "./types";
 
 loader.init().then((monaco) => {
     monaco.editor.defineTheme("myTheme", {
@@ -14,48 +12,26 @@ loader.init().then((monaco) => {
     });
 });
 
-export const CodeEditor = forwardRef<EditorRef | null, EditorProps>(
-    (props, ref) => {
-        const [value, setValue] = useState<string | undefined>(
-            `<Editor
-    theme="myTheme"
-    height="500px"
-    defaultLanguage="javascript"
-    defaultValue={value}
-    onMount={handleEditorDidMount}
-    onChange={handleChangeEditor}
-    options={{
-        colorDecorators: true,
-        inDiffEditor: true,
-        minimap: {
-            enabled: false,
-        },
-        lineNumbers: "off",
-        scrollbar: {
-            vertical: "hidden",
-            horizontal: "hidden",
-        },
-        overviewRulerBorder: false,
-        overviewRulerLanes: 0,
-    }}
-    value={value}
-/>`
-        );
-
-        return (
-            <Editor
-                {...props}
+export function CodeEditor(props: EditorProps) {
+    return (
+        <Editor
+            {...props}
+            theme="myTheme"
+            defaultLanguage="javascript"
+            defaultValue={`<Editor
                 theme="myTheme"
                 height="500px"
                 defaultLanguage="javascript"
                 defaultValue={value}
+                onMount={handleEditorDidMount}
+                onChange={handleChangeEditor}
                 options={{
                     colorDecorators: true,
-                    inDiffEditor: true,
-                    minimap: {
+                     inDiffEditor: true,
+                                minimap: {
                         enabled: false,
                     },
-                    lineNumbers: "off",
+                       lineNumbers: "off",
                     scrollbar: {
                         vertical: "hidden",
                         horizontal: "hidden",
@@ -64,7 +40,22 @@ export const CodeEditor = forwardRef<EditorRef | null, EditorProps>(
                     overviewRulerLanes: 0,
                 }}
                 value={value}
-            />
-        );
-    }
-);
+            />`}
+            options={{
+                colorDecorators: true,
+                inDiffEditor: true,
+                minimap: {
+                    enabled: false,
+                },
+                lineNumbers: "off",
+                scrollbar: {
+                    vertical: "hidden",
+                    horizontal: "hidden",
+                },
+                overviewRulerBorder: false,
+                overviewRulerLanes: 0,
+                renderLineHighlight: "none",
+            }}
+        />
+    );
+}
