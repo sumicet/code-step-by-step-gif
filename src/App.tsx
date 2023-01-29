@@ -1,29 +1,37 @@
 import { useRef, useState } from "react";
 import { Code } from "./components";
-import { toJpeg } from "html-to-image";
 import { imagesToVideo, uploadToImgur } from "./utils";
+import html2canvas from "html2canvas";
 
 function App() {
     const [step, setStep] = useState(0);
 
-    const tabPanelRef = useRef<Array<HTMLElement | null>>([]);
+    const ref = useRef<Array<HTMLDivElement | null>>([]);
 
-    const [url, setUrl] = useState("");
+    const [images, setImages] = useState<string[]>([]);
 
     const htmlToPng = async () => {
         const images = await Promise.all(
             [...Array(2)].map(async (_, index) => {
-                const node = tabPanelRef.current[index];
+                const node = ref.current[index];
                 if (!node) return null;
 
-                return await toJpeg(node, {
-                    quality: 1,
+                const canvas = await html2canvas(node, {
+                    backgroundColor: "transparent",
+                    onclone: (_, element) => {
+                        element.style.opacity = "1";
+                    },
+                    scale: 1,
                 });
-                // return base64.replace(/^data:image\/png;base64,/, "");
+                const dataUrl = canvas.toDataURL("image/jpeg", 1);
+                return dataUrl;
             })
         );
 
-        setUrl(images[0] ?? "");
+        // console.log({ images });
+
+        // // @ts-ignore
+        // setImages(images);
 
         const blobs = await Promise.all(
             images.map(async (image) => {
@@ -42,7 +50,7 @@ function App() {
     };
 
     return (
-        <div className="flex h-full w-full justify-center bg-slate-900">
+        <div className="flex h-full w-full max-w-[100vw] justify-center overflow-hidden bg-slate-900">
             <div className="flex w-full flex-col items-center justify-center space-y-10 p-5">
                 <div className="flex w-full justify-between">
                     <p className="text-3xl font-bold text-slate-300">
@@ -55,12 +63,30 @@ function App() {
                         Generate
                     </button>
                 </div>
-                <image src={url} />
+                {images.map((image) => (
+                    <img key={image} src={image} />
+                ))}
                 {/* <video autoPlay loop playsInline>
                     <source src={url} type="video/webm" />
                 </video> */}
-                <Code step={step} setStep={setStep} max={2} ref={tabPanelRef} />
+
+                <Code
+                    step={step}
+                    setStep={setStep}
+                    max={2}
+                    className="h-full max-h-[700px] min-h-[500px] w-full"
+                />
             </div>
+            {[...Array(2)].map((_, index) => (
+                <Code
+                    key={index + 1}
+                    step={index}
+                    setStep={setStep}
+                    max={2}
+                    className="pointer-events-none absolute h-[700px] w-[1000px] opacity-0"
+                    ref={(node) => (ref.current[index] = node)}
+                />
+            ))}
         </div>
     );
 }

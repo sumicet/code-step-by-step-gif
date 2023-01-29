@@ -19,29 +19,30 @@ export function CodeEditor(props: EditorProps) {
             theme="myTheme"
             defaultLanguage="javascript"
             defaultValue={`<Editor
-                theme="myTheme"
-                height="500px"
-                defaultLanguage="javascript"
-                defaultValue={value}
-                onMount={handleEditorDidMount}
-                onChange={handleChangeEditor}
-                options={{
-                    colorDecorators: true,
-                     inDiffEditor: true,
-                                minimap: {
-                        enabled: false,
-                    },
-                       lineNumbers: "off",
-                    scrollbar: {
-                        vertical: "hidden",
-                        horizontal: "hidden",
-                    },
-                    overviewRulerBorder: false,
-                    overviewRulerLanes: 0,
-                }}
-                value={value}
-            />`}
+    theme="myTheme"
+    height="500px"
+    defaultLanguage="javascript"
+    defaultValue={value}
+    onMount={handleEditorDidMount}
+    onChange={handleChangeEditor}
+    options={{
+        colorDecorators: true,
+        inDiffEditor: true,
+        minimap: {
+            enabled: false,
+        },
+        lineNumbers: "off",
+        scrollbar: {
+            vertical: "hidden",
+            horizontal: "hidden",
+        },
+        overviewRulerBorder: false,
+        overviewRulerLanes: 0,
+    }}
+    value={value}
+/>`}
             options={{
+                ...props?.options,
                 colorDecorators: true,
                 inDiffEditor: true,
                 minimap: {
@@ -55,6 +56,9 @@ export function CodeEditor(props: EditorProps) {
                 overviewRulerBorder: false,
                 overviewRulerLanes: 0,
                 renderLineHighlight: "none",
+                guides: {
+                    indentation: false,
+                },
             }}
         />
     );

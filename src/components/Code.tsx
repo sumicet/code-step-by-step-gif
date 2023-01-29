@@ -4,13 +4,17 @@ import { CodeEditor, Tab, TabList, TabPanel, TabPanels, Tabs } from ".";
 import { EditorRef } from "./CodeEditor/types";
 
 export const Code = forwardRef<
-    Array<HTMLElement | null>,
+    HTMLDivElement,
     {
         step: number;
         setStep: (step: number) => void;
         max: number;
-    }
->(({ step, setStep, max }, tabPanelRef) => {
+        disableSelection?: boolean;
+    } & React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLDivElement>,
+        HTMLDivElement
+    >
+>(({ step, setStep, max, disableSelection, ...rest }, ref) => {
     const editors = useRef<Array<EditorRef | null>>(
         [...Array(max)].map(() => null)
     );
@@ -71,7 +75,13 @@ export const Code = forwardRef<
     };
 
     return (
-        <div className="h-full max-h-[700px] min-h-[500px] w-full rounded-lg bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 p-16">
+        <div
+            {...rest}
+            ref={ref}
+            className={`rounded-lg bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 p-16 ${
+                rest?.className ?? ""
+            }`}
+        >
             <div className="flex h-full w-full flex-col space-y-5 rounded-lg bg-slate-800 p-4">
                 {/* <div ref={tabPanelRef} className="h-36 w-36 bg-red-400" /> */}
                 <Tabs onChange={setStep}>
@@ -89,14 +99,7 @@ export const Code = forwardRef<
                     </TabList>
                     <TabPanels className="h-full">
                         {[...Array(max)].map((_, index) => (
-                            <TabPanel
-                                key={index + 1}
-                                ref={(node) =>
-                                    // @ts-ignore
-                                    (tabPanelRef.current[index] = node)
-                                }
-                                className="h-full"
-                            >
+                            <TabPanel key={index + 1} className="h-full">
                                 <CodeEditor
                                     onMount={(editor) =>
                                         handleMount(editor, index)
