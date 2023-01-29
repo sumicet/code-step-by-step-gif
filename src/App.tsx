@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Code } from "./components";
 import { imagesToVideo, uploadToImgur } from "./utils";
 import html2canvas from "html2canvas";
@@ -14,6 +14,8 @@ const max = 5;
 
 function App() {
     const ref = useRef<Array<HTMLDivElement | null>>([]);
+
+    const [video, setVideo] = useState<string | null>(null);
 
     const convert = async () => {
         const images = await Promise.all(
@@ -44,8 +46,9 @@ function App() {
 
         if (!blobs.length || !isBlobArray(blobs)) return;
 
-        const { videoBlob } = await imagesToVideo(blobs);
+        const { videoBlob, videoUrl } = await imagesToVideo(blobs);
         if (!videoBlob) return;
+        setVideo(videoUrl);
         uploadToImgur(videoBlob);
     };
 
@@ -66,8 +69,6 @@ function App() {
             editorsHidden.current[index]?.setModel(
                 editorsVisible.current[index]?.getModel() ?? null
             );
-
-            console.log(editorsHidden.current[index]?.getValue());
         },
         [editorsHidden, editorsVisible, handleChangeVisible]
     );
@@ -86,6 +87,15 @@ function App() {
                         Generate
                     </button>
                 </div>
+
+                {video && (
+                    <video
+                        src={video}
+                        autoPlay
+                        loop
+                        className="h-[700px] w-[500px] object-contain"
+                    />
+                )}
 
                 {[...Array(max)].map((_, index) => (
                     <Code
@@ -114,8 +124,11 @@ function App() {
                     activeTab={activeTab}
                     onChange={onChange}
                     max={max}
-                    className="pointer-events-none absolute h-[700px] w-[500px] opacity-0"
+                    className="pointer-events-none absolute h-[1000px] w-[1000px] opacity-0"
                     handleMount={(editor) => handleMountHidden(editor, index)}
+                    options={{
+                        fontSize: 30,
+                    }}
                 />
             ))}
         </div>
