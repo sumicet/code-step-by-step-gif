@@ -3,6 +3,10 @@ import { Code } from "./components";
 import { imagesToVideo, uploadToImgur } from "./utils";
 import html2canvas from "html2canvas";
 
+const isBlobArray = (blobs: any[]): blobs is Blob[] => {
+    return !blobs.some((blob) => !blob);
+};
+
 function App() {
     const [step, setStep] = useState(0);
 
@@ -10,7 +14,7 @@ function App() {
 
     const [images, setImages] = useState<string[]>([]);
 
-    const htmlToPng = async () => {
+    const convert = async () => {
         const images = await Promise.all(
             [...Array(2)].map(async (_, index) => {
                 const node = ref.current[index];
@@ -28,23 +32,16 @@ function App() {
             })
         );
 
-        // console.log({ images });
-
-        // // @ts-ignore
-        // setImages(images);
-
         const blobs = await Promise.all(
             images.map(async (image) => {
                 if (!image) return;
-                const r = await fetch(image);
-                const b = await r.blob();
-                return await b.arrayBuffer();
+                return await (await fetch(image)).blob();
             })
         );
 
-        if (!blobs.length) return;
+        if (!blobs.length || !isBlobArray(blobs)) return;
 
-        const { videoBlob } = imagesToVideo(blobs);
+        const { videoBlob } = await imagesToVideo(blobs);
         if (!videoBlob) return;
         uploadToImgur(videoBlob);
     };
@@ -57,19 +54,12 @@ function App() {
                         Code step-by-step gif
                     </p>
                     <button
-                        onClick={htmlToPng}
+                        onClick={convert}
                         className="rounded-lg bg-white bg-gradient-to-r px-3 py-2 font-bold text-slate-700"
                     >
                         Generate
                     </button>
                 </div>
-                {images.map((image) => (
-                    <img key={image} src={image} />
-                ))}
-                {/* <video autoPlay loop playsInline>
-                    <source src={url} type="video/webm" />
-                </video> */}
-
                 <Code
                     step={step}
                     setStep={setStep}

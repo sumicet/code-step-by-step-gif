@@ -2,12 +2,16 @@ import ffmpeg from "ffmpeg.js";
 
 // https://github.com/Kagami/ffmpeg.js/issues/18#issuecomment-238810515
 
-export function imagesToVideo(blobs: Array<ArrayBuffer | undefined>) {
+export async function imagesToVideo(blobs: Blob[]) {
+    const arrayBuffers = await Promise.all(
+        blobs.map(async (blob) => await blob.arrayBuffer())
+    );
+    console.log(arrayBuffers);
     const result = ffmpeg({
         // @ts-ignore
-        MEMFS: blobs.map((data, i) => ({
+        MEMFS: arrayBuffers.map((data, i) => ({
             name: `${i + 1}.jpg`,
-            data: data as ArrayBuffer,
+            data,
         })),
         // https://ffmpeg.org/ffmpeg.html
         arguments: [
