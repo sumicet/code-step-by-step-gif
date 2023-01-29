@@ -19,7 +19,7 @@ export async function imagesToVideo(blobs: Blob[]) {
         "-crf",
         "10",
         "-r",
-        "120",
+        "60",
         "-c:v",
         "libx264",
         "-c:a",
