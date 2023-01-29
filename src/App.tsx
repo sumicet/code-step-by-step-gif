@@ -25,8 +25,10 @@ function App() {
                     backgroundColor: "transparent",
                     onclone: (_, element) => {
                         element.style.opacity = "1";
+                        element.style.margin = "0px";
                     },
                     scale: 1,
+                    allowTaint: true,
                 });
                 const dataUrl = canvas.toDataURL("image/jpeg", 1);
                 return dataUrl;
@@ -112,7 +114,7 @@ function App() {
                     activeTab={activeTab}
                     onChange={onChange}
                     max={max}
-                    className="pointer-events-none absolute h-[700px] w-[1000px] opacity-0"
+                    className="pointer-events-none absolute h-[700px] w-[500px] opacity-0"
                     handleMount={(editor) => handleMountHidden(editor, index)}
                 />
             ))}

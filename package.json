@@ -12,6 +12,7 @@
     "dependencies": {
         "@monaco-editor/react": "^4.4.6",
         "eslint-plugin-react-hooks": "^4.6.0",
+        "ffmpeg-static": "^5.1.0",
         "ffmpeg.js": "^4.2.9003",
         "html2canvas": "^1.4.1",
         "imgur": "^2.2.0",
